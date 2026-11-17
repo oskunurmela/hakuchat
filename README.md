@@ -71,3 +71,15 @@ Sovellus käynnistyy osoitteeseen `http://127.0.0.1:5000`.
 Tällä tavalla malli voi hakea lisätietoa verkosta tarvittaessa ja rakentaa vastauksen haettujen tietojen perusteella, eikä sen tarvitse luottaa pelkästään omaan koulutustietoonsa.
 
 ## Reflektio
+
+1. **Missä kohdassa agentti teki virheen tai huonon ratkaisun, ja miten huomasit sen?**
+Agentti teki pari virhettä. Ensiksi se yritti alustaa OpenAI-yhteyden ennen kuin .env-tiedosto oli ladattu load_dotenv()-funktiolla, ja lisäksi se käytti väärää ympäristömuuttujan nimeä (OPEN_ROUTER_UUS). Huomasin tämän, kun ohjelma kaatui toistuvasti Missing credentials -virheeseen. Toinen virhe tapahtui käyttöliittymää yhdistäessä: agentin koodi ei käsitellyt virheitä oikein reitityksessä, jolloin selain sai JSONin sijaan HTML-virhesivun ja antoi Unexpected token -virheen. Huomasin nämä lukemalla terminaalin ja selaimen virheilmoituksia.
+
+2. **Minkä osan koodista ymmärrät heikoimmin? Mitä tekisit asialle?**
+Heikoimmin ymmärrän selainkäyttöliittymän JavaScriptin (fetch-kutsut) ja Flask-palvelimen välisen tiedonsiirron yksityiskohdat, sekä sen, miten työkalun JSON tarkalleen määritellään API-kutsussa. Voisin parantaa ymmärrystäni lukemalla Flaskin perehtymällä asiaan paremmin ja kokeilemalla kirjoittaa yksinkertaisen fetch-pyynnön kokonaan itse ilman tekoälyä.
+
+3. **Miten agentin käyttö vaikutti oppimiseesi verrattuna siihen, että olisit kirjoittanut koodin itse?**
+Agentin käyttö siirsi huomioni koodin kirjoittamisesta koodin lukemiseen ja ohjelman arkkitehtuuriin. Sen sijaan, että olisin jumiutunut syntaksivirheisiin tai puuttuviin sulkeisiin, pystyin keskittymään tietoturvaan (kuten komentoinjektioiden estämiseen ja API-avaimen suojaamiseen) sekä tool use -silmukan logiikkaan. Se opetti myös kriittisyyttä. Agentin tuottamaan koodiin ei voi sokeasti luottaa, vaan sen jokainen tuotos on testattava.
+
+4. **Milloin malli päätti hakea ja milloin ei? Toimiko päätös järkevästi?**
+Malli teki päätökset erittäin fiksusti ja loogisesti. Kun kysyin "Mikä on rekursio?", malli ymmärsi, että kyseessä on yleinen ohjelmointikonsepti, ja vastasi suoraan omasta opetusdatastaan ilman hakua. Kun taas annoin syötteen "Etsi linkkejä aiheesta Python asyncio", malli tunnisti heti tarpeen käyttää ulkoista lähdettä ja aktivoi web_search-työkalun saadakseen oikeita, klikattavia linkkejä.
