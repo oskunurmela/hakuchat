@@ -1,22 +1,36 @@
-# PROMPTS.md
+# Agentin ohjauksessa käytetyt promptit
 
-Tässä tiedostossa on koottuna tärkeimmät käyttäjän antamat promptit tämän istunnon aikana ja lyhyt kuvaus siitä, miten kuhunkin vastattiin.
+### 1. Suunnitelma (Plan-agentti)
+**Prompti:**
+> "Lue weather.py. Suunnittele Python-sovellus, jossa on Flask-palvelin, yksinkertainen index.html-chat ja tool use -työkalu web_search, joka hakee curlilla Wikipedian haku-API:sta. Käytä samaa openai-kirjastoa, OpenRouteria ja mallia kuin weather.py:ssä. Älä kirjoita vielä koodia. Listaa tiedostot, funktiot ja toteutusjärjestys pieninä testattavina askelina. Huomioi AGENTS.md:n tietoturvasäännöt."
 
-## 1. JSON-virheen korjaus frontendin ja palvelimen välillä
+**Miten agentti suoriutui:**
+Agentti teki aika hyvän ja selkeän suunnitelman. Se tajusi suoraan AGENTS.md:n turvasäännöt (subprocess listana ja curlin aikaraja). Ainoa moka oli se, että agentti nappasi mallitiedostosta väärän ympäristömuuttujan nimen, joka piti korjata myöhemmin.
 
-**Prompt:** Käyttäjä ilmoitti selaimen konsolissa ilmenevästä virheestä: `SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON`. Syynä oli, että frontend odotti JSON-vastausta, mutta palvelin palautti HTML:ää (esim. Flaskin oletusvirhesivu tai väärä reitti/index.html). Käyttäjä pyysi tekemään kolme korjausta:
+### 2. Hakufunktion teko (Build-agentti)
+**Prompti:**
+> "Suunnitelma on erinomainen! Aloitetaan vaiheesta 2. Toteuta web_search.py, jossa on funktio web_search(query). Käytä subprocess.run-kutsua listamuodossa ilman shell=True-asetusta. URL-enkoodaa hakusana ja aseta curlille 10 sekunnin aikaraja. Palauta Wikipedia-haun tulokset listana sanakirjoja {title, url}. Lisää tiedoston loppuun __main__-lohko komentorivitestausta varten."
 
-- Varmistaa, että `app.py`:n reitti on täsmälleen `@app.route('/api/chat', methods=['POST'])` ja että se palauttaa vastauksen aina Flaskin `jsonify`-funktiolla (esim. `return jsonify({"response": vastaus})`).
-- Kääriä `app.py`:n `/api/chat`-reitin logiikka try-except-lohkoon. Jos `chat_core`-kutsussa tapahtuu virhe, palauttaa sekin JSON-muodossa: `return jsonify({"error": str(e)}), 500`. Älä anna Flaskin palauttaa HTML-virhesivua.
-- Varmistaa, että `index.html`:n fetch-kutsu osoittaa täsmälleen osoitteeseen `/api/chat` ja käsittelee vastauksen oikein (`res.json()`).
+**Miten agentti suoriutui:**
+Tämä meni purkkiin ihan ykkösellä. Agentti koodasi turvallisen hakufunktion ja osasi nätisti parsia Wikipedian palauttaman JSON-datan Pythonin listaksi.
 
-**Vastaus:** Luin `app.py`, `templates/index.html` ja `chat_core.py`. Huomasin, että reitti `/api/chat` oli jo oikein ja vastaus käytettiin jo `jsonify`-funktiolla. Samoin `index.html`:n fetch osoitti jo `/api/chat` ja käytti `res.json():a`. Ainoa puuttuva oli try-except-kääritys `chat_core.chat`-kutsun ympärille, jonka lisäsin. Virhetilanteessa reitti palauttaa nyt `jsonify({"error": str(e)}), 500` Flaskin HTML-virhesivun sijaan. Tarkistin tiedoston syntaksin `python3 -c "import ast; ..."` -komennolla.
+### 3. Tool use -silmukka (Build-agentti)
+**Prompti:**
+> "Hienoa, web_search.py toimii! Siirrytään vaiheeseen 3. Tee chat_core.py, jossa on funktio chat(messages). Määrittele web_search-työkalu JSON-skeemana tools-listassa. Toteuta tool use -silmukka: kutsu mallia, suorita työkalukutsut ja kutsu mallia uudelleen, kunnes tulee tekstivastaus (max 5 kierrosta)."
 
-## 2. Dokumentaatio: README.md ja PROMPTS.md
+**Miten agentti suoriutui:**
+Logiikka oli muuten oikein, mutta tässä tuli ongelmia ympäristömuuttujien kanssa. Koodi kaatui `Missing credentials` -virheeseen, koska agentti ei ladannut avainta oikein ennen clientin luomista.
 
-**Prompt:** Käyttäjä pyysi kirjoittamaan kaksi tiedostoa:
+### 4. Ympäristömuuttujien bugin korjaus (Build-agentti)
+**Prompti:**
+> "Saan yhä 'Missing credentials' -virheen, koska os.environ.get('OPENROUTER_API_KEY') palauttaa None. Syy on se, että OpenAI-client luodaan ennen kuin .env-tiedosto on ehditty lukea. Korjaa chat_core.py rakenne tällaiseksi: 1. Kaikki importit ylös. 2. Heti importtien jälkeen kutsu: load_dotenv(). 3. VASTA NÄIDEN JÄLKEEN luo muuttuja client."
 
-- `README.md`, jossa on a) asennus- ja käynnistysohjeet (miten `.venv` tehdään, riippuvuudet asennetaan, avain asetetaan exportilla ja `app.py` käynnistetään) sekä b) selitys omin sanoin suomeksi siitä, miten `chat_core.py`:n tool use -silmukka toimii askel askeleelta. Tiedoston loppuun tuli jättää otsikko "Reflektio", johon käyttäjä kirjoittaa itse myöhemmin vastaukset.
-- `PROMPTS.md`, johon kerätään lista tärkeimmistä prompteista, jotka käyttäjä antoi istunnon aikana, ja lyhyt huomio siitä, miten vastasi niihin.
+**Miten agentti suoriutui:**
+Kun annoin näin tarkan ohjeen, agentti sai tiedoston rakenteen korjattua. Tämän jälkeen testiajo komentoriviltä onnistui heti.
 
-**Vastaus:** Kirjoitin molemmat tiedostot. `README.md` sisältää vaiheittaiset asennusohjeet virtuaaliympäristön luomisesta, riippuvuuksien asentamisesta, API-avaimen asettamisesta ja sovelluksen käynnistyksestä, sekä suomenkielisen askel askeleelta -selityksen `chat_core.py`:n tool use -silmukasta ja lopussa otsikon "Reflektio". `PROMPTS.md` sisältää yllä olevan listauksen istunnon prompteista ja vastauksista.
+### 5. Flask ja frontend (Build-agentti)
+**Prompti:**
+> "Siirrytään vaiheeseen 4. Tee app.py (Flask) ja käyttöliittymä templates/index.html. app.py tarjoaa index.html:n ja POST /api/chat -rajapinnan. index.html tehdään ilman ulkoisia kirjastoja. Tärkeä näkyvyysvaatimus: UI:n pitää näyttää erillisenä, visuaalisena huomiona, jos malli käytti hakua ja millä hakusanalla. Vastauksen linkkien pitää olla klikattavia."
+
+**Miten agentti suoriutui:**
+Käyttöliittymästä tuli ihan siisti ja se teki sen mitä piti. Mutta app.py:n reitityksessä oli taas pieni fiba: selain sai virhetilanteissa Flaskilta HTML-virhesivun eikä JSONia, mistä seurasi kummallisia erroreita selaimen konsolissa.

@@ -1,74 +1,41 @@
-# Hakuchat
+# Asennus- ja käynnistysohjeet
 
-Yksitiedostoinen Python-sovellus, joka kutsuu OpenRouteria (OpenAI-yhteensopiva asiakas) sää- ja hakutoiminnoilla.
+**1. Virtuaaliympäristö päälle**
+Avaa projektin kansio terminaalissa ja luo Python-virtuaaliympäristö:
 
-## Asennus ja käynnistäminen
-
-1. Luo virtuaaliympäristö (.venv):
-
-```bash
-python -m venv .venv
-```
-
-2. Aktivoi virtuaaliympäristö:
-
-```bash
-# Linux/macOS
+python3 -m venv .venv
 source .venv/bin/activate
 
-# Windows
-.venv\Scripts\activate
-```
+**2. Riippuvuudet sisään**
 
-3. Asenna riippuvuudet (repo ei sisällä requirements.txt):
+Asenna tarvittavat paketit (Flask, OpenAI ja python-dotenv):
 
-```bash
-pip install openai python-dotenv flask
-```
+pip install flask openai python-dotenv
 
-4. Aseta API-avain ympäristömuuttujaan. `weather.py` lukee muuttujan `OPEN_ROUTER_UUS`, kun taas `api.env` määrittelee `OPENROUTER_API_KEY`. Aseta ainakin se, jota sovelluksesi käyttää:
+**3. API-avaimen asetus**
+Jotta kielimalli toimii, tarvitset OpenRouterin API-avaimen. Laita se suoraan terminaalin ympäristömuuttujiin tällä komennolla (korvaa oma avaimesi):
 
-```bash
-export OPEN_ROUTER_UUS="sk-or-..."
-# tai
-export OPENROUTER_API_KEY="sk-or-..."
-```
+export OPENROUTER_API_KEY="sk-or-v1-sinun-avaimesi-tähän"
 
-Voit myös luoda `.env`-tiedoston (gitignore:ssa) ja ladata sen.
 
-5. Käynnistä sovellus:
+**4. Palvelin tulille**
+Käynnistä Flask-palvelin komennolla:
 
-```bash
 python app.py
-```
 
-Sovellus käynnistyy osoitteeseen `http://127.0.0.1:5000`.
+Sitten vain selain auki ja osoitteeksi: http://127.0.0.1:5000
 
-### Huomautus ympäristömuuttujista
+---
 
-`api.env`-tiedosto sisältää `OPENROUTER_API_KEY`, mutta `weather.py` lukee nimenomaan `OPEN_ROUTER_UUS`. Ne eivät täsmää, josta voi seurata virhe. Aseta oikea muuttuja shelliin tai `.env`-tiedostoon ennen käynnistystä.
+## Miten "Tool Use" -silmukka oikeasti toimii?
 
-## Miten chat_core.py:n tool use -silmukka toimii
+1. Ensin kielimallille lähetetään käyttäjän viesti, mutta sen lisäksi sille viedään JSON-muodossa lista työkaluista, joita se saa käyttää (meillä se on `web_search`).
+2. Sitten tulee se juju: tekoäly *ei itse* tee mitään verkkohakuja. Jos se tajuaa, että nyt tarvitaan lisätietoa netistä, se pysäyttää vastaamisen ja palauttaa ohjelmalle erikoisviestin (`tool_calls`).
+3. Minun koodini nappaa tuon pyynnön kiinni, lukee mitä malli haluaa hakea, ja ajaa ihan normaalin Pythonin `subprocess.run`-komennon, joka tekee sen curl-kutsun.
+4. Koodi ottaa Wikipedian palauttaman hakutuloksen, muotoilee sen ja tunkee takaisin mallin viestihistoriaan ikään kuin uutena viestinä (jonka roolina on 'tool').
+5. Lopuksi mallia kutsutaan vielä kerran tällä uudella historialla. Nyt se näkee alkuperäisen kysymyksen ja haetut faktat, ja osaa niiden pohjalta muotoilla fiksun vastauksen käyttäjälle.
 
-`chat_core.py` toteuttaa niin sanotun työkalukutsusilmukan (tool use / function calling), jossa kielimalli voi itse päättää, tarvitseeko se ulkoista hakua vastauksen tuottamiseen. Se toimii seuraavasti askel askeleelta:
-
-1. **Alustus**: Funktio `chat(messages)` saa syötteenä listan viestisanakkoja (esim. käyttäjän viesti). Se kopioi viestilistan omaksi muuttujakseen `current_messages` ja alustaa seurantamuuttujat `search_used` ja `search_query`.
-
-2. **Mallille lähetys**: Silmukka toistuu enintään `MAX_ROUNDS` (oletus 5) kertaa. Jokaisella kierroksella se kutsuu OpenAI-yhteensopivaa rajapintaa (`client.chat.completions.create`) annetuilla viesteillä ja antaa mukana työkalumäärittelyn `web_search_tool`. Työkalu kuvaa Suomen Wikipedia -haun, joka ottaa vastaan yhden merkkijonoparametrin `query`.
-
-3. **Vastaanotto ja tarkistus**: Mallilta saadaan vastaus. Tarkistetaan, sisältääkö vastaus työkalukutsuja (`message.tool_calls`). Jos työkalukutsuja ei ole, malli on valmis vastaamaan suoraan, ja funktio palauttaa vastauksen sanakirjana avaimilla `answer`, `search_used` ja `search_query`.
-
-4. **Työkalukutsun käsittely**: Jos malli pyytää työkalun käyttöä:
-   - Vastausviesti lisätään viestilistaan (`current_messages.append(message)`).
-   - Käydään läpi jokainen pyydetty työkalukutsu. Jos työkalun nimi on `web_search`, puretaan sen argumentit JSON-muodosta ja luetaan `query`-parametri.
-   - Suoritetaan varsinainen haku kutsumalla `web_search.web_search(query)`.
-   - Hakutulokset lisätään viestilistaan "tool"-tyyppisenä viestinä, jossa on mukana työkalukutsun ID (`tool_call_id`) ja tulos JSON-merkkijonona. Tämä kertoo mallille, mitä haku palautti.
-
-5. **Seuraava kierros**: Silmukka jatkuu seuraavalta kierrokselta. Mallille toimitetaan nyt päivitetty viestilista, joka sisältää sekä alkuperäisen pyynnön että työkalun tuottamat tulokset. Malli voi tässä vaiheessa joko pyytää lisää haukia tai lopettaa ja antaa lopullisen vastauksen.
-
-6. **Lopetus**: Jos enimmäiskierrosmäärä saavutetaan ilman lopullista vastausta, palautetaan oletusviesti "(Vastaus ei valmis enimmäiskierrosten jälkeen.)".
-
-Tällä tavalla malli voi hakea lisätietoa verkosta tarvittaessa ja rakentaa vastauksen haettujen tietojen perusteella, eikä sen tarvitse luottaa pelkästään omaan koulutustietoonsa.
+Laitoin silmukkaan myös 5 kierroksen maksimirajan, ettei koodi jää ikuiseen luuppiin, jos tekoäly sattuisi menemään jotenkin jumiin.
 
 ## Reflektio
 
