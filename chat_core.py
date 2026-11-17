@@ -36,8 +36,10 @@ client = OpenAI(
 )
 
 
-def chat(messages: list[dict]) -> str:
+def chat(messages: list[dict]) -> dict:
     current_messages = list(messages)
+    search_used = False
+    search_query: str | None = None
 
     for round_index in range(MAX_ROUNDS):
         response = client.chat.completions.create(
@@ -50,7 +52,11 @@ def chat(messages: list[dict]) -> str:
         tool_calls = message.tool_calls or []
 
         if not tool_calls:
-            return message.content or ""
+            return {
+                "answer": message.content or "",
+                "search_used": search_used,
+                "search_query": search_query,
+            }
 
         current_messages.append(message)
 
@@ -63,6 +69,8 @@ def chat(messages: list[dict]) -> str:
 
                 args = json.loads(arguments)
                 query = args.get("query", "")
+                search_used = True
+                search_query = query
                 print(f"[kierros {round_index + 1}] Työkalukutsu: web_search(query={query!r})")
                 results = web_search.web_search(query)
                 print(f"[kierros {round_index + 1}] Tuloksia: {len(results)}")
@@ -83,7 +91,11 @@ def chat(messages: list[dict]) -> str:
                     }
                 )
 
-    return "(Vastaus ei valmis enimmäiskierrosten jälkeen.)"
+    return {
+        "answer": "(Vastaus ei valmis enimmäiskierrosten jälkeen.)",
+        "search_used": search_used,
+        "search_query": search_query,
+    }
 
 
 if __name__ == "__main__":
@@ -93,6 +105,11 @@ if __name__ == "__main__":
 
     user_question = sys.argv[1]
     messages = [{"role": "user", "content": user_question}]
-    answer = chat(messages)
+    result = chat(messages)
+    answer = result["answer"]
+    search_used = result.get("search_used", False)
+    search_query = result.get("search_query")
+    if search_used:
+        print(f"[HAKU KÄYTETTY] hakusana: {search_query!r}")
     print("\n--- Vastaus ---")
     print(answer)

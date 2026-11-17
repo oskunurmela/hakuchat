@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hakuchat</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0;
+      background: #f5f7f9;
+      color: #111;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #1a1a1a;
+      color: #fff;
+      padding: 16px 24px;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    main {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    #searchNotice {
+      display: none;
+      background: #e8f4fd;
+      border: 1px solid #90caf9;
+      border-left: 4px solid #2196f3;
+      color: #0d47a1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .msg {
+      max-width: 70%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      line-height: 1.5;
+      font-size: 0.98rem;
+      white-space: pre-wrap;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #dcfce7;
+      color: #166534;
+      border-bottom-right-radius: 2px;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      color: #111;
+      border-bottom-left-radius: 2px;
+    }
+    .msg a {
+      color: #2563eb;
+      text-decoration: underline;
+      word-break: break-all;
+    }
+    .spacer { flex: 1; }
+    form {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px;
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 24px;
+      font-size: 0.98rem;
+      outline: none;
+    }
+    input[type="text"]:focus {
+      border-color: #2563eb;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 24px;
+      background: #1a1a1a;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #333; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <header>Hakuchat</header>
+  <main id="chat">
+    <div id="searchNotice"></div>
+    <div class="spacer"></div>
+  </main>
+  <form id="form">
+    <input type="text" id="input" placeholder="Kirjoita viestisi..." autocomplete="off">
+    <button type="submit">Lähetä</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const chat = document.getElementById('chat');
+    const notice = document.getElementById('searchNotice');
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function linkify(text) {
+      return escapeHtml(text).replace(
+        /(https?:\/\/[^\s<]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+      );
+    }
+
+    function addMessage(text, role) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + role;
+      div.innerHTML = linkify(text);
+      chat.insertBefore(div, chat.lastElementChild);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function showSearchNotice(query) {
+      notice.style.display = 'block';
+      notice.textContent = 'Haku tehtiin sanalla: ' + escapeHtml(query);
+    }
+
+    function hideSearchNotice() {
+      notice.style.display = 'none';
+    }
+
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      input.disabled = true;
+      hideSearchNotice();
+
+      addMessage(text, 'user');
+
+      const typing = document.createElement('div');
+      typing.className = 'msg assistant';
+      typing.textContent = 'Kirjoittaa…';
+      chat.insertBefore(typing, chat.lastElementChild);
+      chat.scrollTop = chat.scrollHeight;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        const data = await res.json();
+
+        typing.remove();
+        addMessage(data.answer, 'assistant');
+
+        if (data.search_used) {
+          showSearchNotice(data.search_query);
+        }
+      } catch (err) {
+        typing.remove();
+        addMessage('Virhe: ' + escapeHtml(String(err)), 'assistant');
+      } finally {
+        input.disabled = false;
+        input.focus();
+      }
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendMessage();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    input.focus();
+  </script>
+</body>
+</html>
